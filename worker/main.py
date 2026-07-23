@@ -1,30 +1,38 @@
 """
 Motor de Videos — Worker (Modal)
 ================================
-Pipeline de procesamiento de video. Cada etapa actualiza el estado del `job`
-en Supabase y (cuando aplique) sube resultados a S3.
+Pipeline del sprint "El Cortador + Reencuadre + Plan.md". Cada etapa:
+  1) marca el estado del `job` en Supabase,
+  2) hace su trabajo (S3 / Whisper / FFmpeg / OpenRouter),
+  3) registra el costo en `cost_events`,
+  4) dispara la siguiente etapa — o se DETIENE en la revisión humana.
 
-Estado: ESQUELETO del sprint "El Cortador + Reencuadre + Plan.md".
-La lógica real de cada etapa se implementa por pasos; aquí queda la forma.
+Idiom Modal: en el nivel superior solo importamos `modal` + stdlib. Las libs
+pesadas (boto3, supabase, faster-whisper, httpx) se importan DENTRO de cada
+función, porque solo existen en la imagen del contenedor, no en local.
 
-Correr localmente:  modal run worker/main.py
-Desplegar:          modal deploy worker/main.py
-Secrets:            ver docs/SETUP.md (aws, openrouter, supabase)
+Local:    modal run worker/main.py
+Deploy:   modal deploy worker/main.py
+Secrets:  ver docs/SETUP.md (aws, openrouter, supabase)
 """
+
+from __future__ import annotations
+
+import os
+from typing import Any
 
 import modal
 
 app = modal.App("motor-de-videos")
 
-# Imagen del contenedor: FFmpeg + librerías de audio/IA.
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("ffmpeg")
     .pip_install(
         "faster-whisper",   # transcripción con timestamps
         "boto3",            # S3
-        "httpx",            # llamadas HTTP (OpenRouter)
-        "supabase",         # actualizar estado/costos
+        "httpx",            # OpenRouter
+        "supabase",         # estado / costos
     )
 )
 
@@ -36,59 +44,231 @@ secrets = [
 ]
 
 
-# ---------- Etapas del pipeline (mapean a los estados del job) ----------
+# =============================================================
+# Helpers de infraestructura (corren dentro del contenedor)
+# =============================================================
+
+def _supabase():
+    from supabase import create_client
+
+    return create_client(
+        os.environ["SUPABASE_URL"],
+        os.environ["SUPABASE_SERVICE_ROLE_KEY"],
+    )
+
+
+def _s3():
+    import boto3
+
+    return boto3.client("s3", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+
+
+def _bucket() -> str:
+    return os.environ["S3_BUCKET"]
+
+
+# ---------- Base de datos (jobs / costos / planes / assets) ----------
+
+def set_state(job_id: str, state: str, progress: int | None = None,
+              error: str | None = None) -> None:
+    patch: dict[str, Any] = {"state": state}
+    if progress is not None:
+        patch["progress"] = progress
+    if error is not None:
+        patch["error"] = error
+    _supabase().table("jobs").update(patch).eq("id", job_id).execute()
+
+
+def get_job(job_id: str) -> dict:
+    return _supabase().table("jobs").select("*").eq("id", job_id).single().execute().data
+
+
+def get_project(project_id: str) -> dict:
+    return _supabase().table("projects").select("*").eq("id", project_id).single().execute().data
+
+
+def insert_cost(*, workspace_id: str, project_id: str | None, job_id: str | None,
+                category: str, provider: str, quantity: float, unit: str,
+                cost_usd: float) -> None:
+    _supabase().table("cost_events").insert({
+        "workspace_id": workspace_id,
+        "project_id": project_id,
+        "job_id": job_id,
+        "category": category,
+        "provider": provider,
+        "quantity": quantity,
+        "unit": unit,
+        "cost_usd": cost_usd,
+    }).execute()
+
+
+def insert_asset(*, workspace_id: str, project_id: str, kind: str, s3_key: str,
+                 mime_type: str | None = None, size_bytes: int | None = None) -> None:
+    _supabase().table("assets").insert({
+        "workspace_id": workspace_id,
+        "project_id": project_id,
+        "kind": kind,
+        "s3_key": s3_key,
+        "mime_type": mime_type,
+        "size_bytes": size_bytes,
+    }).execute()
+
+
+# ---------- Almacenamiento (S3) ----------
+
+def download(key: str, dest: str) -> str:
+    _s3().download_file(_bucket(), key, dest)
+    return dest
+
+
+def upload(src: str, key: str, content_type: str | None = None) -> str:
+    extra = {"ContentType": content_type} if content_type else {}
+    _s3().upload_file(src, _bucket(), key, ExtraArgs=extra)
+    return key
+
+
+def presign_get(key: str, expires: int = 3600) -> str:
+    return _s3().generate_presigned_url(
+        "get_object", Params={"Bucket": _bucket(), "Key": key}, ExpiresIn=expires
+    )
+
+
+# ---------- LLM (OpenRouter — API compatible con OpenAI) ----------
+
+def llm_complete(model: str, messages: list[dict], **kwargs) -> dict:
+    import httpx
+
+    resp = httpx.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={"Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}"},
+        json={"model": model, "messages": messages, **kwargs},
+        timeout=120,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+# =============================================================
+# Contrato de salida: construcción del plan.md
+# =============================================================
+
+def build_plan_md(*, project: dict, clean_video_url: str, cuts: list[dict],
+                  reframes: list[dict], visuals: list[dict], materials: list[str],
+                  cost_total_usd: float) -> str:
+    """Ensambla el plan.md final. Es el 'contrato' de salida del sprint."""
+    out: list[str] = [f"# 🎬 Plan de edición — {project.get('title', 'Sin título')}", ""]
+
+    if project.get("description"):
+        out += [f"> **Objetivo:** {project['description']}", ""]
+
+    out += ["## ✂️ Video limpio",
+            f"- Descarga (link temporal): {clean_video_url}",
+            f"- Cortes aplicados: **{len(cuts)}**", ""]
+
+    out += ["## 🗒️ Cortes aplicados"]
+    if cuts:
+        out += ["| # | Inicio | Fin | Motivo |", "|---|--------|-----|--------|"]
+        out += [f"| {i} | {c.get('start')} | {c.get('end')} | {c.get('reason', '')} |"
+                for i, c in enumerate(cuts, 1)]
+    else:
+        out += ["_Sin cortes._"]
+    out += [""]
+
+    out += ["## 🔲 Reencuadres propuestos (revisión manual)"]
+    out += [f"- **{r.get('at', '')}** — {r.get('suggestion', '')}" for r in reframes] \
+        or ["_Sin propuestas de reencuadre._"]
+    out += [""]
+
+    out += ["## 🎨 Apoyo visual propuesto (aún no generado)"]
+    out += [f"- **{v.get('at', '')}** _({v.get('type', '')})_ — {v.get('idea', '')}" for v in visuals] \
+        or ["_Sin propuestas visuales._"]
+    out += [""]
+
+    out += ["## 📦 Material necesario"]
+    out += [f"- [ ] {m}" for m in materials] or ["_Nada adicional._"]
+    out += [""]
+
+    out += ["## 💰 Costo estimado",
+            f"- Total: **${cost_total_usd:.2f} USD**", "",
+            "---", "_Generado automáticamente por Motor de Videos._"]
+    return "\n".join(out)
+
+
+# =============================================================
+# Etapas del pipeline (mapean a los estados del job)
+# NOTA: el "cuerpo" pesado (Whisper/FFmpeg/prompts) es TODO de Fase 1.
+#       La orquestación de estados y el encadenamiento ya están cableados.
+# =============================================================
 
 @app.function(image=image, secrets=secrets, timeout=3600)
 def transcribe(job_id: str):
-    """Etapa 2 (`transcribing`): video -> transcript con timestamps por palabra."""
-    # TODO: descargar video de S3, correr faster-whisper, guardar transcript,
-    #       registrar costo (minutos), pasar a 'planning_cuts'.
-    raise NotImplementedError
+    """Etapa 2 (`transcribing`): video -> transcript con timestamps."""
+    set_state(job_id, "transcribing", progress=10)
+    # TODO Fase 1: download(raw_key) -> faster-whisper -> guardar transcript (asset)
+    #              -> insert_cost(category='transcription', provider='whisper', unit='minutes')
+    plan_cuts.spawn(job_id)
 
 
 @app.function(image=image, secrets=secrets, timeout=900)
 def plan_cuts(job_id: str):
     """Etapa 3 (`planning_cuts`): transcript + descripción -> plan de cortes (LLM)."""
-    # TODO: prompt a OpenRouter con transcript + descripción del proyecto,
-    #       guardar cut_plan (segmentos), pasar a 'review_pending' y esperar al humano.
-    raise NotImplementedError
+    set_state(job_id, "planning_cuts", progress=30)
+    # TODO Fase 1: llm_complete(model, [transcript + project.description])
+    #              -> guardar cut_plan (segmentos) -> insert_cost(category='llm', unit='tokens')
+    # Se DETIENE para revisión humana (el humano aprueba en la web):
+    set_state(job_id, "review_pending", progress=40)
 
 
 @app.function(image=image, secrets=secrets, timeout=3600)
 def render_clean(job_id: str):
     """Etapa 5 (`rendering`): aplica los cortes aprobados -> video limpio (FFmpeg)."""
-    # TODO: leer segmentos aprobados, cortar/concatenar con FFmpeg, subir a S3.
-    raise NotImplementedError
+    set_state(job_id, "rendering", progress=55)
+    # TODO Fase 1: leer segmentos aprobados -> FFmpeg (cortar/concatenar) -> upload(clean_key)
+    #              -> insert_asset(kind='clean_video')
+    propose_reframe.spawn(job_id)
 
 
 @app.function(image=image, secrets=secrets, timeout=1800)
 def propose_reframe(job_id: str):
-    """Etapa 6 (`reframing`): genera propuestas de encuadre ajustado (no auto-aplica)."""
-    raise NotImplementedError
+    """Etapa 6 (`reframing`): propuestas de encuadre ajustado (no auto-aplica)."""
+    set_state(job_id, "reframing", progress=70)
+    # TODO Fase 1: analizar encuadre/sujeto -> propuestas de reencuadre.
+    propose_visuals.spawn(job_id)
 
 
 @app.function(image=image, secrets=secrets, timeout=900)
 def propose_visuals(job_id: str):
-    """Etapa 7 (`proposing_visuals`): propone apoyo visual y material necesario (LLM)."""
-    raise NotImplementedError
+    """Etapa 7 (`proposing_visuals`): apoyo visual + material necesario (LLM)."""
+    set_state(job_id, "proposing_visuals", progress=85)
+    # TODO Fase 1: llm_complete -> propuestas de b-roll/gráficos/SFX + lista de material.
+    assemble_plan.spawn(job_id)
 
 
 @app.function(image=image, secrets=secrets, timeout=600)
 def assemble_plan(job_id: str):
-    """Etapa 8 (`plan_ready`): ensambla el plan.md (video limpio + propuestas) -> S3."""
-    raise NotImplementedError
+    """Etapa 8 (`plan_ready`): ensambla el plan.md y lo sube a S3."""
+    # TODO Fase 1: build_plan_md(...) -> upload(plan_key) -> insert_asset(kind='plan_md')
+    set_state(job_id, "plan_ready", progress=100)
 
 
-# ---------- Endpoint que dispara el pipeline desde Next.js ----------
+# =============================================================
+# Endpoints HTTP que dispara la web (Next.js)
+# (si tu versión de Modal usa el nombre antiguo, es `modal.web_endpoint`)
+# =============================================================
 
 @app.function(secrets=secrets)
 @modal.fastapi_endpoint(method="POST")
 def start_pipeline(payload: dict):
-    """
-    Recibe {"job_id": "..."} desde la web y arranca el pipeline en background.
-    Corre hasta 'review_pending'; tras la aprobación humana la web dispara la
-    reanudación (render_clean -> ... -> plan_ready).
-    """
+    """Arranca el pipeline: {"job_id": "..."}. Corre hasta 'review_pending'."""
     job_id = payload["job_id"]
-    transcribe.spawn(job_id)  # encadenaremos las siguientes etapas dentro de cada una
-    return {"ok": True, "job_id": job_id}
+    transcribe.spawn(job_id)
+    return {"ok": True, "job_id": job_id, "next": "transcribing"}
+
+
+@app.function(secrets=secrets)
+@modal.fastapi_endpoint(method="POST")
+def resume_pipeline(payload: dict):
+    """Reanuda tras la aprobación humana: {"job_id": "..."}. Corre render -> plan_ready."""
+    job_id = payload["job_id"]
+    render_clean.spawn(job_id)
+    return {"ok": True, "job_id": job_id, "next": "rendering"}

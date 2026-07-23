@@ -17,6 +17,23 @@
 
 ---
 
+## 2026-07-22 — Worker con estructura real + contrato del plan.md
+
+**Avances:**
+- `worker/main.py` reescrito con estructura real: helpers de infra (Supabase, S3, OpenRouter), orquestación de estados y encadenamiento de las 8 etapas vía `.spawn`, y dos endpoints HTTP (`start_pipeline` y `resume_pipeline` para reanudar tras la revisión humana).
+- `build_plan_md()` define el **contrato de salida**; [`docs/plan-ejemplo.md`](./plan-ejemplo.md) muestra el entregable final ya "renderizado".
+- Aplicado el idiom de Modal: imports pesados (boto3, supabase, httpx, whisper) DENTRO de cada función; el nivel superior solo importa `modal` + stdlib.
+
+**Decisiones:**
+- **Infra como código (IaC)** confirmado. La huella en AWS es mínima (solo **S3 + IAM**), porque el cómputo es Modal y la DB es Supabase → el IaC será pequeño.
+
+**Pendientes / próximos pasos:**
+1. Elegir herramienta de IaC (Terraform vs Pulumi-Python vs CDK-Python) y scaffoldear `infra/`.
+2. Rellenar el cuerpo de cada etapa en Fase 1 (Whisper, prompts de cortes, FFmpeg).
+3. UI base del front (login, dashboard, "nuevo proyecto").
+
+---
+
 ## 2026-07-22 — Fase 0: cimientos scaffoldeados
 
 **Avances:**
@@ -32,7 +49,8 @@
 - Leer siempre `web/node_modules/next/dist/docs/` antes de escribir código de Next en este proyecto.
 
 **Decisiones menores:**
-- `create-next-app` creó un `.git` dentro de `web/`; lo eliminé para mantener un solo repo (monorepo). El `git init` en la raíz queda pendiente del OK de Johannes.
+- `create-next-app` creó un `.git` dentro de `web/`; lo eliminé para mantener un solo repo (monorepo).
+- Git inicializado en la raíz (rama `main`), commit inicial `9fba755` (34 archivos, sin `node_modules`/`.env`), y **push** a `origin`: <https://github.com/labsomethingdata-sketch/build-automate-video.git>.
 
 **Pendientes / próximos pasos:**
 1. Johannes: crear cuentas y credenciales siguiendo [`SETUP.md`](./SETUP.md).
