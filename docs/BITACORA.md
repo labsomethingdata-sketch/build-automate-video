@@ -17,6 +17,28 @@
 
 ---
 
+## 2026-07-22 — UI base del front (navegable con mocks)
+
+**Avances:**
+- UI base minimalista y navegable **sin credenciales** (datos mock):
+  - **Login/registro** cableado a Supabase Auth (con guard si aún no hay credenciales).
+  - **Shell** con sidebar (workspace, panel, clientes, "nuevo proyecto").
+  - **Panel** con stats + grid de proyectos.
+  - **Clientes** (lista).
+  - **Nuevo proyecto** (form: título, cliente, descripción, video).
+  - **Detalle de proyecto** con stepper de los 8 estados del pipeline + acciones según estado (revisión de cortes / plan listo / error).
+- Capa compartida: `lib/types.ts` (dominio, refleja el schema), `lib/pipeline.ts` (estados+labels), `lib/mock.ts`, componentes `ui/{button,card,badge}`, `pipeline-status`, `sidebar`.
+- Diseño con tokens Tailwind v4 (light/dark automático); `proxy.ts` hace no-op sin credenciales para poder correr `npm run dev`.
+- **`next build` en verde**: 7 rutas compilan, TypeScript OK.
+
+**Cómo verlo:** `cd web && npm run dev` → <http://localhost:3000> (redirige a `/dashboard`).
+
+**Pendientes / próximos pasos:**
+1. Fase 1: conectar credenciales, reemplazar mocks por consultas a Supabase (RLS) y firmar subidas a S3.
+2. Rellenar el cuerpo de las etapas del worker (Whisper, cortes, FFmpeg).
+
+---
+
 ## 2026-07-22 — IaC de AWS con Terraform
 
 **Decisiones:**
