@@ -1,0 +1,36 @@
+# Dependencias
+node_modules/
+.pnp.*
+
+# Builds
+.next/
+out/
+dist/
+build/
+
+# Entornos (nunca commitear secretos; sí el .env.example)
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Modal
+.modal.toml
+
+# Supabase (local)
+supabase/.branches/
+supabase/.temp/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log

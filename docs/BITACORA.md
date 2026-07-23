@@ -1,0 +1,85 @@
+# 📓 Bitácora — Motor de Videos
+
+> Log cronológico de decisiones, avances y aprendizajes del proyecto.
+> **Las entradas más recientes van arriba.** La idea general y la arquitectura
+> viven en [`CONTEXTO.md`](./CONTEXTO.md); aquí queda el *rastro* de cómo llegamos ahí.
+
+### Cómo escribir una entrada
+
+```
+## AAAA-MM-DD — Título corto
+
+**Decisiones:** qué se decidió y por qué.
+**Avances:** qué se construyó/cambió.
+**Pendientes / próximos pasos:** qué sigue.
+**Aprendizajes:** (opcional) qué descubrimos.
+```
+
+---
+
+## 2026-07-22 — Fase 0: cimientos scaffoldeados
+
+**Avances:**
+- Monorepo creado: `web/` (Next.js **16.2.11** + React **19.2.4** + TS + Tailwind), `worker/` (Modal), `supabase/migrations/`, `docs/`.
+- Migraciones SQL escritas: schema (8 tablas + enums + índices + triggers) y RLS (aislamiento por workspace, trigger de owner).
+- Integración Supabase en el front: `lib/supabase/client.ts` (browser), `server.ts` (server) y `proxy.ts` + `web/proxy.ts` (refresco de sesión).
+- `web/.env.example` y `worker/.env.example` documentados; `.gitignore` raíz.
+- **Typecheck del front en verde** (`tsc --noEmit` exit 0).
+
+**Aprendizajes (Next.js 16 trae breaking changes):**
+- `cookies()` es **async** → `await cookies()`.
+- `middleware.ts` se renombró a **`proxy.ts`** (función exportada `proxy`, runtime Node.js por defecto). Adaptamos el patrón de sesión de Supabase.
+- Leer siempre `web/node_modules/next/dist/docs/` antes de escribir código de Next en este proyecto.
+
+**Decisiones menores:**
+- `create-next-app` creó un `.git` dentro de `web/`; lo eliminé para mantener un solo repo (monorepo). El `git init` en la raíz queda pendiente del OK de Johannes.
+
+**Pendientes / próximos pasos:**
+1. Johannes: crear cuentas y credenciales siguiendo [`SETUP.md`](./SETUP.md).
+2. Aplicar las migraciones al proyecto Supabase (vía CLI o MCP) y crear los Modal Secrets.
+3. Conectar `.env` y arrancar **Fase 1**: subir video → `transcribe` (primer eslabón real del pipeline).
+
+---
+
+## 2026-07-22 — Decisiones confirmadas + guía de setup
+
+**Decisiones:**
+- DB/Auth: **Supabase** confirmado (más fácil).
+- LLM: **OpenRouter** (multi-modelo) en vez de un solo proveedor → probar varios modelos con un mismo API y elegir por tarea/costo.
+- Cuentas de Modal + credenciales AWS: las configura **Johannes**, tras revisar el plan.
+
+**Avances:**
+- `CONTEXTO.md` actualizado: stack y pipeline (§3, §7) ahora usan OpenRouter; §8 pasó de "pendientes" a "decisiones tomadas".
+- Creado [`SETUP.md`](./SETUP.md): guía paso a paso de la Fase 0 (Supabase, OpenRouter, AWS S3 + IAM + CORS, Modal) y mapa de cómo fluyen los secretos.
+
+**Pendientes / próximos pasos:**
+1. Johannes: seguir `SETUP.md` para crear cuentas y recolectar credenciales (checklist §5).
+2. Claude: scaffoldear el monorepo (`web/`, `worker/`, `supabase/`) y el esquema SQL con RLS — no requiere credenciales, avanza en paralelo.
+
+---
+
+## 2026-07-22 — Kickoff: visión, stack y sprint definidos
+
+**Decisiones:**
+- El proyecto es un **Motor de Videos** para modo **agencia / equipo** (multi-usuario, multi-cliente).
+- Regla de oro: **cada sprint entrega un E2E funcional.**
+- Stack acordado sobre terreno conocido: **Next.js** (front) + **Python** (workers).
+- **Modal** para el cómputo de video/IA (reemplaza montar Redis + cola + hosting de worker).
+- **AWS S3** para almacenar los archivos de video.
+- Recomendado y por confirmar: **Supabase** (auth + DB + realtime) y **Claude API** (cerebro editorial).
+- Filosofía: la IA **propone**, el humano **revisa y aprueba** (human-in-the-loop).
+
+**Avances:**
+- Definido el mapa completo de la visión (ver [`CONTEXTO.md`](./CONTEXTO.md) §2).
+- Definida la arquitectura web + Modal + S3 + Supabase (§3).
+- Definido el modelo de datos borrador (§4) y la estructura de monorepo (§5).
+- Definido el **Sprint actual**: *"El Cortador + Reencuadre + Plan.md"* con pipeline de 8 estados (§7).
+- Creados los documentos base: `docs/CONTEXTO.md` y `docs/BITACORA.md`.
+
+**Pendientes / próximos pasos:**
+1. Confirmar decisiones abiertas: Supabase (DB/Auth), Claude (LLM), cuentas de Modal + AWS.
+2. **Fase 0 — Cimientos:** scaffoldear el monorepo (`web/`, `worker/`, `supabase/`).
+3. Crear el esquema de base de datos con RLS (workspaces, members, clients, projects, jobs, cut_plan, assets, cost_events).
+
+**Aprendizajes:**
+- Modal simplifica bastante la arquitectura de background jobs vs. montar la cola a mano.

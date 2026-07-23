@@ -1,0 +1,7 @@
+# Dependencias del worker. En Modal se instalan dentro de la imagen (ver main.py);
+# este archivo sirve para el entorno local / autocompletado del editor.
+modal
+faster-whisper
+boto3
+httpx
+supabase
