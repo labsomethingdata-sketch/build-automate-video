@@ -17,6 +17,23 @@
 
 ---
 
+## 2026-07-22 — IaC de AWS con Terraform
+
+**Decisiones:**
+- Herramienta de infra como código: **Terraform** (footprint pequeño S3 + IAM; sin `bootstrap` ni backend complejo).
+
+**Avances:**
+- `infra/` scaffoldeado: bucket S3 (privado + CORS), usuario IAM de mínimos privilegios, `variables.tf`, `outputs.tf` (secretos marcados `sensitive`), `.gitignore` de Terraform y `README` con el flujo `init/apply` y cómo leer los outputs.
+- `SETUP.md` §3/§5/§6 actualizado: AWS ya no es manual — se despliega con `terraform apply` en `infra/`.
+- `CONTEXTO.md`: estructura del repo y stack ahora incluyen `infra/` + Terraform.
+
+**Pendientes / próximos pasos:**
+1. Johannes: instalar Terraform + tener credenciales AWS (deployer) → `terraform apply`.
+2. Rellenar el cuerpo de las etapas del worker (Fase 1).
+3. UI base del front (login, dashboard, "nuevo proyecto").
+
+---
+
 ## 2026-07-22 — Worker con estructura real + contrato del plan.md
 
 **Avances:**

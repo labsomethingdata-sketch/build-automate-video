@@ -54,53 +54,31 @@ el servidor (Next.js server / Modal Secrets).
 
 ---
 
-## 3. AWS S3 (almacenamiento de videos)
+## 3. AWS S3 (almacenamiento de videos) — vía Terraform
 
-### 3.1 Crear el bucket
-1. Consola AWS → **S3** → **Create bucket**.
-2. Nombre único global, ej. `motor-de-videos-media`. Región, ej. `us-east-1`
-   (anótala → `AWS_REGION`). Deja **Block all public access = ON** (los archivos
-   se sirven con URLs firmadas, no públicas).
+**No hay pasos manuales en la consola.** El bucket S3 (privado + CORS) y el usuario
+IAM de mínimos privilegios se crean como código con Terraform (carpeta
+[`infra/`](../infra/README.md)).
 
-### 3.2 Usuario IAM con permisos mínimos
-1. **IAM → Users → Create user**: `motor-de-videos-worker`. **Sin** acceso a consola.
-2. Adjunta una **política inline** (reemplaza `TU-BUCKET`):
+Solo necesitas:
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
-      "Resource": "arn:aws:s3:::TU-BUCKET/*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": ["s3:ListBucket"],
-      "Resource": "arn:aws:s3:::TU-BUCKET"
-    }
-  ]
-}
-```
-
-3. Crea **Access key** → copia:
-   - **Access key ID** → `AWS_ACCESS_KEY_ID`
-   - **Secret access key** (¡secreta, se muestra una sola vez!) → `AWS_SECRET_ACCESS_KEY`
-
-### 3.3 CORS del bucket (para subir desde el navegador con URL firmada)
-En el bucket → **Permissions → CORS** pega (ajusta el origen en producción):
-
-```json
-[
-  {
-    "AllowedHeaders": ["*"],
-    "AllowedMethods": ["PUT", "GET"],
-    "AllowedOrigins": ["http://localhost:3000"],
-    "ExposeHeaders": ["ETag"]
-  }
-]
-```
+1. Instalar [Terraform](https://developer.hashicorp.com/terraform/install) ≥ 1.5.
+2. Tener **credenciales de AWS con permisos para crear S3 e IAM** (tu cuenta
+   admin/deployer), vía `aws configure` o variables de entorno.
+   *(Estas son para desplegar; Terraform genera aparte las credenciales del worker.)*
+3. Desplegar:
+   ```bash
+   cd infra
+   cp terraform.tfvars.example terraform.tfvars   # ajusta bucket_name (único global)
+   terraform init && terraform apply
+   ```
+4. Leer las salidas → estos son tus valores de AWS:
+   ```bash
+   terraform output bucket_name                     # S3_BUCKET
+   terraform output aws_region                      # AWS_REGION
+   terraform output -raw worker_access_key_id       # AWS_ACCESS_KEY_ID
+   terraform output -raw worker_secret_access_key   # AWS_SECRET_ACCESS_KEY
+   ```
 
 ---
 
@@ -126,9 +104,7 @@ En el bucket → **Permissions → CORS** pega (ajusta el origen en producción)
 
 - [ ] Proyecto Supabase creado; URL + anon key + service_role key guardadas
 - [ ] OpenRouter: cuenta + API key (+ crédito opcional)
-- [ ] AWS: bucket S3 creado + región anotada
-- [ ] AWS: usuario IAM con política mínima + access key/secret guardadas
-- [ ] AWS: CORS configurado en el bucket
+- [ ] AWS: `terraform apply` en `infra/` hecho; outputs recolectados (bucket, región, access key/secret)
 - [ ] Modal: cuenta creada + `modal token new` hecho
 
 ---
@@ -141,10 +117,10 @@ En el bucket → **Permissions → CORS** pega (ajusta el origen en producción)
 | `SUPABASE_ANON_KEY`          | Supabase API    | web (público)          | No        |
 | `SUPABASE_SERVICE_ROLE_KEY`  | Supabase API    | web (server) + Modal   | **Sí**    |
 | `OPENROUTER_API_KEY`         | OpenRouter      | Modal                  | **Sí**    |
-| `AWS_ACCESS_KEY_ID`          | IAM             | Modal (+ web si firma) | **Sí**    |
-| `AWS_SECRET_ACCESS_KEY`      | IAM             | Modal (+ web si firma) | **Sí**    |
-| `AWS_REGION`                 | tú lo eliges    | web + Modal            | No        |
-| `S3_BUCKET`                  | tú lo eliges    | web + Modal            | No        |
+| `AWS_ACCESS_KEY_ID`          | Terraform (infra/) | Modal + web (firma)  | **Sí**    |
+| `AWS_SECRET_ACCESS_KEY`      | Terraform (infra/) | Modal + web (firma)  | **Sí**    |
+| `AWS_REGION`                 | Terraform (infra/) | web + Modal          | No        |
+| `S3_BUCKET`                  | Terraform (infra/) | web + Modal          | No        |
 
 > Cuando tengas esto listo, avísame y conectamos todo. Mientras tanto, yo voy
 > montando el esqueleto del repo y el esquema de base de datos (no necesitan

@@ -73,6 +73,7 @@ Un request web no puede esperar tanto → separamos el mundo "web" (rápido) del
 | Frontend                 | Next.js (App Router) + TypeScript + Tailwind + shadcn/ui | Terreno conocido; UI limpia rápido |
 | Auth + DB + Realtime     | Supabase (Postgres)                        | Auth + RLS (multi-tenant de agencia) + realtime; ya conectado |
 | Almacenamiento de archivos | AWS S3                                    | Videos pesados fuera de la DB |
+| Infra de AWS (IaC)       | Terraform                                  | Bucket S3 + IAM como código (carpeta `infra/`) |
 | Cómputo de video/IA      | Modal (Python serverless)                  | Es worker + cola + escalado + GPU en uno; Python nativo |
 | Transcripción            | faster-whisper (en Modal)                  | Timestamps por palabra |
 | Cerebro editorial (LLM)  | OpenRouter (multi-modelo)                  | Un solo API para probar varios LLMs; decide qué cortar y propone visuales |
@@ -106,6 +107,7 @@ motor-de-videos/
 ├─ web/          # Next.js (UI + API routes que hablan con Supabase/Modal)
 ├─ worker/       # Modal app en Python (whisper, cortes, ffmpeg, reencuadre)
 ├─ supabase/     # migraciones SQL (schema + RLS)
+├─ infra/        # Terraform: AWS como código (S3 + IAM)
 └─ docs/         # este documento, bitácora y decisiones
 ```
 

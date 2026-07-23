@@ -1,0 +1,4 @@
+# Copia este archivo a `terraform.tfvars` y ajústalo (terraform.tfvars está en .gitignore).
+aws_region      = "us-east-1"
+bucket_name     = "motor-de-videos-media" # CÁMBIALO: debe ser único a nivel global
+allowed_origins = ["http://localhost:3000"]
