@@ -17,6 +17,22 @@
 
 ---
 
+## 2026-07-23 — Setup casi listo: AWS ✅, Supabase key ✅, migraciones pendientes
+
+**Contexto:** El desarrollo va en **WSL (Ubuntu 24.04)**, que evita la interferencia de Norton (curl/terraform/red funcionan ahí sin problema).
+
+**Avances:**
+- **AWS ya desplegado** con Terraform desde WSL: existe `infra/terraform.tfstate`; outputs → bucket `motor-de-videos-media-jt2026`, región `us-east-1`, creds del worker. (De ahí salieron las creds AWS del `.env.local`.)
+- **Supabase**: URL + publishable key **validadas** (auth-settings → 200 desde WSL). Llaves del modelo nuevo (`sb_publishable_` / `sb_secret_`) en `web/.env.local` (gitignored), usando los nombres de variable existentes.
+- Corregido: la OpenRouter key estaba mal puesta en `MODAL_START_PIPELINE_URL`; se sacó (va a Modal Secrets, la usa el worker).
+- **Migraciones aún NO aplicadas** (404 `PGRST205`). Añadido `supabase/apply_migrations.py` (runner con psycopg2, sin sudo) y `psycopg2-binary` instalado en WSL.
+
+**Pendiente inmediato:**
+1. Correr `supabase/apply_migrations.py` con `DATABASE_URL` desde WSL → crea tablas + RLS.
+2. Rotar los secretos que pasaron por el chat (Supabase secret, OpenRouter, AWS secret).
+
+---
+
 ## 2026-07-23 — Terraform instalado + gotcha con Norton (loopback del plugin)
 
 **Avances:**

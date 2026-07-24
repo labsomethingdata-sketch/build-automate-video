@@ -27,6 +27,36 @@ Regla: **nunca** poner claves secretas (service key, AWS secret, OpenRouter)
 en variables `NEXT_PUBLIC_*` — esas viajan al navegador. Las secretas viven en
 el servidor (Next.js server / Modal Secrets).
 
+### ¿Dónde pego cada valor? (los dos destinos reales)
+
+Mientras recolectas keys (§1–§4) guárdalas en tu gestor de contraseñas. Ese es
+**almacén temporal**, no el destino final. Los destinos reales son dos:
+
+**1. `web/` → archivo `web/.env.local`.** Cópialo de la plantilla y rellena:
+
+```bash
+cp web/.env.example web/.env.local   # luego pega tus valores dentro
+```
+
+⚠️ En web, las variables públicas llevan **prefijo `NEXT_PUBLIC_`** (por eso el
+nombre no es igual al de §1). La plantilla [`web/.env.example`](../web/.env.example)
+es la **fuente de verdad** de los nombres exactos:
+
+| Valor que recolectaste | Nombre exacto en `web/.env.local` |
+| ---------------------- | --------------------------------- |
+| Supabase Project URL   | `NEXT_PUBLIC_SUPABASE_URL`        |
+| Supabase anon key      | `NEXT_PUBLIC_SUPABASE_ANON_KEY`   |
+| Supabase service_role  | `SUPABASE_SERVICE_ROLE_KEY` (sin prefijo, solo server) |
+| AWS access/secret/region + bucket | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET` |
+| URL del endpoint de Modal | `MODAL_START_PIPELINE_URL` (la imprime `modal deploy`; la llenamos juntos) |
+
+`web/.env.local` está en `.gitignore` — nunca se commitea.
+
+**2. `worker/` (Modal) → NO hay archivo.** Los valores viven como *Modal Secrets*,
+cargados con los comandos de [§4](#4-modal-cómputo-del-pipeline). El archivo
+[`worker/.env.example`](../worker/.env.example) es **solo** para correr el worker
+localmente fuera de Modal (opcional); no lo necesitas para el flujo normal.
+
 ---
 
 ## 1. Supabase (auth + base de datos)
@@ -35,9 +65,11 @@ el servidor (Next.js server / Modal Secrets).
 2. Nombre: `motor-de-videos`. Elige región cercana (ej. `us-east`). Guarda la
    **Database password** en tu gestor de contraseñas.
 3. Cuando cargue, ve a **Project Settings → API** y copia:
-   - **Project URL** → `SUPABASE_URL`
-   - **anon public key** → `SUPABASE_ANON_KEY`
+   - **Project URL** → `SUPABASE_URL` (en web se llama `NEXT_PUBLIC_SUPABASE_URL`)
+   - **anon public key** → `SUPABASE_ANON_KEY` (en web: `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
    - **service_role key** (¡secreta!) → `SUPABASE_SERVICE_ROLE_KEY`
+
+> El nombre exacto en cada archivo está en §0 → *¿Dónde pego cada valor?*
 
 > Con el proyecto creado, yo aplico el esquema (tablas + RLS) por migraciones —
 > tú no tienes que crear tablas a mano.
@@ -121,6 +153,10 @@ Solo necesitas:
 | `AWS_SECRET_ACCESS_KEY`      | Terraform (infra/) | Modal + web (firma)  | **Sí**    |
 | `AWS_REGION`                 | Terraform (infra/) | web + Modal          | No        |
 | `S3_BUCKET`                  | Terraform (infra/) | web + Modal          | No        |
+| `MODAL_START_PIPELINE_URL`   | `modal deploy` (worker) | web (server)     | No        |
+
+> **Nombres exactos y dónde pegarlos:** ver §0 → *¿Dónde pego cada valor?*. En
+> `web/.env.local`, las variables públicas de Supabase llevan prefijo `NEXT_PUBLIC_`.
 
 > Cuando tengas esto listo, avísame y conectamos todo. Mientras tanto, yo voy
 > montando el esqueleto del repo y el esquema de base de datos (no necesitan
