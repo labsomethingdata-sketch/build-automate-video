@@ -17,6 +17,20 @@
 
 ---
 
+## 2026-07-23 — Terraform instalado + gotcha con Norton (loopback del plugin)
+
+**Avances:**
+- Terraform **v1.15.8** instalado (winget: `Hashicorp.Terraform`). `terraform init` OK y lock file generado.
+- Proveedor AWS subido a `~> 6.0` (quedó **6.56.0**); lock file commiteado.
+
+**Gotcha importante (entorno de Johannes):**
+- `terraform validate/plan/apply` falla con *"Plugin did not respond / GetProviderSchema"*: el plugin del proveedor AWS muere (exit 1) al comunicarse por **loopback + mTLS** con Terraform (log muestra *"stdio service not available"*).
+- Descartado: memoria (6.5 GB libres), versión del proveedor (falla en v5 y v6), shell (falla en Git Bash y PowerShell). El binario del proveedor arranca solo sin problema (exit 0) → el proveedor está sano.
+- **Causa: Norton Security Ultra** (AV activo; Defender está apagado) inspecciona/bloquea la conexión loopback del plugin.
+- **Fix (a elección de Johannes):** pausar Norton Auto-Protect al correr `terraform apply`; o añadir exclusiones para `terraform.exe` + la carpeta del proveedor; o correr Terraform desde **WSL2 / CI**.
+
+---
+
 ## 2026-07-22 — UI base del front (navegable con mocks)
 
 **Avances:**
