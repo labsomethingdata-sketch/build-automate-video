@@ -17,6 +17,22 @@
 
 ---
 
+## 2026-07-23 — 🎉 Fase 0 CERRADA: setup completo y verificado
+
+**Avances:**
+- **Migraciones aplicadas** (Johannes las corrió manual en el SQL Editor). **Verificado desde WSL**: las 8 tablas existen (HTTP 200 con secret key) y **RLS activo** (anon → `workspaces` → `[]`).
+- Con esto queda cerrada la **Fase 0**: Supabase (tablas + RLS + llaves en `web/.env.local`), AWS (S3 + IAM vía Terraform/WSL), web scaffolded (Next 16 + Supabase), worker skeleton (Modal), repo en GitHub y documentado.
+
+**Gotchas de conexión (para la próxima):**
+- La connection string ≠ API URL (`postgresql://...` vs `https://...`).
+- La conexión **"Direct"** es IPv6 → no sirve desde WSL; usar el **pooler** (`...pooler.supabase.com`, IPv4). Ojo con la **región** exacta del host.
+
+**Pendiente / próximos pasos:**
+1. **Fase 1**: auth real en la web + reemplazar mocks por datos de Supabase; luego Modal (secrets + deploy) y primera etapa del pipeline (upload → transcribe).
+2. Rotar los secretos que pasaron por el chat (Supabase secret, OpenRouter, AWS secret).
+
+---
+
 ## 2026-07-23 — Setup casi listo: AWS ✅, Supabase key ✅, migraciones pendientes
 
 **Contexto:** El desarrollo va en **WSL (Ubuntu 24.04)**, que evita la interferencia de Norton (curl/terraform/red funcionan ahí sin problema).

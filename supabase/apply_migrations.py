@@ -31,6 +31,13 @@ except ImportError:
 url = os.environ.get("DATABASE_URL")
 if not url:
     sys.exit("Falta DATABASE_URL (Supabase → Settings → Database → Connection string → URI).")
+if not url.startswith("postgres"):
+    sys.exit(
+        "DATABASE_URL no es una connection string de Postgres.\n"
+        f"  Recibí: {url[:45]}...\n"
+        "  Debe empezar con 'postgresql://' — NO uses la URL https del proyecto.\n"
+        "  Cópiala de: Supabase → Connect → Connection string → URI (modo Session)."
+    )
 
 here = os.path.dirname(os.path.abspath(__file__))
 files = sorted(glob.glob(os.path.join(here, "migrations", "*.sql")))
