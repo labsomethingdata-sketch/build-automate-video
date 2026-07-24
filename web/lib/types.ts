@@ -35,6 +35,7 @@ export interface Project {
   id: string;
   workspaceId: string;
   clientId: string | null;
+  clientName?: string | null;
   title: string;
   description: string | null;
   createdAt: string; // ISO date

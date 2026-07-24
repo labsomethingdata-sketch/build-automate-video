@@ -25,15 +25,26 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const supabase = createClient();
-      const { error } =
-        mode === "login"
-          ? await supabase.auth.signInWithPassword({ email, password })
-          : await supabase.auth.signUp({ email, password });
-      if (error) {
-        setError(error.message);
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) {
+          setError(error.message);
+          return;
+        }
+        if (!data.session) {
+          setError("Cuenta creada. Revisa tu correo para confirmar y luego entra.");
+          setMode("login");
+          return;
+        }
       } else {
-        router.push("/dashboard");
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          setError(error.message);
+          return;
+        }
       }
+      router.push("/dashboard");
+      router.refresh();
     } catch {
       setError("No se pudo conectar con Supabase.");
     } finally {

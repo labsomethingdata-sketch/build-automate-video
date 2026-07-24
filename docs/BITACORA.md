@@ -17,6 +17,24 @@
 
 ---
 
+## 2026-07-23 — Fase 1: auth real + datos reales + tests
+
+**Avances:**
+- **Auth real**: guard de sesión en el layout de `(app)` (sin sesión → `/login`), logout funcional, y **onboarding** (crear workspace al registrarte). Login maneja confirmación por email.
+- **Datos reales (adiós mocks)**: panel, clientes, nuevo proyecto y detalle leen/escriben en Supabase vía **Server Components + Server Actions**, con RLS.
+  - Capa nueva: `lib/data.ts` (queries), `lib/actions.ts` (mutaciones), `lib/mappers.ts` (DB snake_case → app camelCase, puro y testeable). Eliminado `lib/mock.ts`.
+- **Tests**: **Vitest** (web) — 11 tests (utils, pipeline, mappers); **pytest** (worker) — 5 tests (`build_plan_md`, extraído a `worker/plan.py`). Script `npm test`.
+- **Verde de punta a punta** (todo desde WSL): type-check + build + 16 tests.
+
+**Gotcha:** `npm install` debe correr **en WSL** (binarios nativos de Linux: lightningcss/SWC). Si se instala en Windows, `npm run dev` falla en WSL.
+
+**Pendiente / próximos pasos:**
+1. Modal: crear secrets + `modal deploy` del worker.
+2. Primera etapa real del pipeline: subir video (S3) → transcribir (Whisper).
+3. Rotar los secretos que pasaron por el chat.
+
+---
+
 ## 2026-07-23 — 🎉 Fase 0 CERRADA: setup completo y verificado
 
 **Avances:**
